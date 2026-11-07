@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mes trajets IDF</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#4f6ef7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trajets IDF">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+  /* Layout: single centered column — hero "prochain passage" géant, puis liste des suivants, réglages repliables */
+  :root{
+    --bg:#f3f4f7; --surface:#ffffff; --surface-2:#eef0f4;
+    --ink:#161a22; --muted:#5b6475; --faint:#8a92a3; --line:#dfe3ea;
+    --accent:#1f6feb;            /* bleu transit */
+    --soon:#d6442b;              /* imminent */
+    --warn:#c77700;             /* proche */
+    --ok:#1f9d57;               /* confortable */
+    --shadow:0 1px 2px rgba(20,26,34,.06),0 8px 24px rgba(20,26,34,.06);
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0d1017; --surface:#161b24; --surface-2:#1e2633;
+    --ink:#eef1f6; --muted:#9aa4b5; --faint:#6b7486; --line:#273142;
+    --accent:#4f93ff; --soon:#ff6a52; --warn:#f0a23a; --ok:#36c877;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0d1017; --surface:#161b24; --surface-2:#1e2633;
+    --ink:#eef1f6; --muted:#9aa4b5; --faint:#6b7486; --line:#273142;
+    --accent:#4f93ff; --soon:#ff6a52; --warn:#f0a23a; --ok:#36c877;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}   /* fichier autonome : certains éléments forcent display:flex et ignoreraient l'attribut hidden */
+  html,body{margin:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:560px; margin:0 auto;
+    padding-left:max(18px,env(safe-area-inset-left,0px));
+    padding-right:max(18px,env(safe-area-inset-right,0px));
+    padding-block:22px 40px;}
+  .tnum{font-variant-numeric:tabular-nums}
+
+  /* --- Header --- */
+  header{display:flex; align-items:center; gap:12px; margin-bottom:18px}
+  .badge{flex:none; width:46px; height:46px; border-radius:12px; background:var(--accent);
+    color:#fff; display:grid; place-items:center; font-weight:800; font-size:19px; letter-spacing:.5px;
+    box-shadow:var(--shadow)}
+  .htxt .eyebrow{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:1px}
+  .htxt h1{margin:0; font-size:17px; font-weight:700; letter-spacing:-.2px}
+  .htxt p{margin:2px 0 0; font-size:12.5px; color:var(--muted)}
+  .htxt p b{color:var(--ink); font-weight:600}
+  .iconbtn{margin-left:auto; flex:none; width:40px; height:40px; border-radius:10px; border:1px solid var(--line);
+    background:var(--surface); color:var(--muted); cursor:pointer; font-size:17px; display:grid; place-items:center}
+  .iconbtn:hover{color:var(--ink); border-color:var(--accent)}
+  .iconbtn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* --- Hero prochain passage --- */
+  .hero{background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:22px 20px 20px;
+    box-shadow:var(--shadow); margin-bottom:14px}
+  .hero .lbl{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:700}
+  .hero .dir{font-size:13.5px; color:var(--muted); margin-top:4px}
+  .hero .dir b{color:var(--ink)}
+  .big{display:flex; align-items:baseline; gap:10px; margin-top:10px}
+  .big .mins{font-size:64px; line-height:.9; font-weight:800; letter-spacing:-2px}
+  .big .unit{font-size:19px; color:var(--muted); font-weight:600}
+  .big.soon .mins{color:var(--soon)} .big.warn .mins{color:var(--warn)} .big.ok .mins{color:var(--ink)}
+  .hero .count{font-size:13.5px; color:var(--muted); margin-top:7px; font-variant-numeric:tabular-nums}
+  .hero .count b{color:var(--ink); font-weight:700}
+  .hero .at{font-size:13px; color:var(--muted); margin-top:8px}
+  .hero .at .live{color:var(--ok); font-weight:600}
+  .hero .at .sched{color:var(--faint)}
+
+  /* --- Liste suivants --- */
+  .next-lbl{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+    font-weight:700; margin:20px 2px 8px}
+  ul.list{list-style:none; margin:0; padding:0; background:var(--surface); border:1px solid var(--line);
+    border-radius:14px; overflow:hidden; box-shadow:var(--shadow)}
+  ul.list li{display:flex; align-items:center; gap:12px; padding:13px 16px; border-top:1px solid var(--line)}
+  ul.list li:first-child{border-top:0}
+  .li-dir{flex:1; min-width:0}
+  .li-dir .d{font-size:14px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .li-dir .s{font-size:12px; color:var(--muted); margin-top:1px}
+  .li-min{flex:none; text-align:right}
+  .li-min .m{font-size:22px; font-weight:800; letter-spacing:-.5px}
+  .li-min .u{font-size:11px; color:var(--faint); margin-left:2px; font-weight:600}
+  .li-min.soon .m{color:var(--soon)} .li-min.warn .m{color:var(--warn)} .li-min.ok .m{color:var(--ok)}
+  .dot{flex:none; width:8px; height:8px; border-radius:50%; background:var(--ok)}
+  .dot.sched{background:var(--faint)}
+
+  .foot{display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12px; color:var(--faint); flex-wrap:wrap}
+  .foot .usage{margin-left:auto; font-variant-numeric:tabular-nums}
+  .foot .usage.hi{color:var(--warn)} .foot .usage.full{color:var(--soon); font-weight:700}
+  .foot .btn-f{border:1px solid var(--line); background:var(--surface); color:var(--muted);
+    border-radius:8px; padding:5px 12px; cursor:pointer; font-size:12px; font-weight:600}
+  .foot .btn-f:hover{color:var(--ink); border-color:var(--accent)}
+  .foot .btn-f:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  .foot #pause.paused{color:var(--warn); border-color:color-mix(in srgb,var(--warn) 50%,var(--line))}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 var(--ok)}
+  .live-anim{animation:p 2.4s ease-out infinite}
+  @keyframes p{0%{box-shadow:0 0 0 0 rgba(31,157,87,.5)}70%{box-shadow:0 0 0 7px rgba(31,157,87,0)}100%{box-shadow:0 0 0 0 rgba(31,157,87,0)}}
+
+  /* --- Messages (empty / error / config) --- */
+  .msg{background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 18px;
+    box-shadow:var(--shadow); font-size:13.5px; color:var(--muted); line-height:1.6}
+  .msg h3{margin:0 0 6px; font-size:14px; color:var(--ink)}
+  .msg.err{border-color:color-mix(in srgb,var(--soon) 45%,var(--line))}
+  .msg.err h3{color:var(--soon)}
+  .msg code{background:var(--surface-2); padding:1px 6px; border-radius:5px; font-size:12px}
+  .skel{height:64px; border-radius:12px; background:linear-gradient(90deg,var(--surface-2),var(--line),var(--surface-2));
+    background-size:200% 100%; animation:sh 1.3s linear infinite}
+  @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+  /* --- Panneau réglages --- */
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow);
+    padding:18px; margin-bottom:16px}
+  .panel h2{margin:0 0 4px; font-size:15px}
+  .panel .hint{font-size:12.5px; color:var(--muted); margin:0 0 14px}
+  .field{margin-bottom:13px}
+  .field label{display:block; font-size:12px; font-weight:700; color:var(--ink); margin-bottom:5px}
+  .field label .opt{color:var(--faint); font-weight:500}
+  .field input{width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:9px;
+    background:var(--bg); color:var(--ink); font-size:14px; font-family:inherit}
+  .field input:focus{outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent)}
+  .field .sub{font-size:11.5px; color:var(--faint); margin-top:5px; line-height:1.5}
+  .field .sub a{color:var(--accent)}
+  .field.line-field{position:relative}
+  .line-results{position:absolute; left:0; right:0; top:100%; z-index:5; margin-top:4px; background:var(--surface);
+    border:1px solid var(--line); border-radius:9px; box-shadow:var(--shadow); max-height:232px; overflow-y:auto}
+  .line-results button{display:block; width:100%; text-align:left; border:0; border-top:1px solid var(--line);
+    background:none; padding:9px 12px; cursor:pointer; font-size:13.5px; color:var(--ink)}
+  .line-results button:first-child{border-top:0}
+  .line-results button:hover, .line-results button:focus{background:var(--surface-2); outline:none}
+  .line-results .mode{color:var(--faint); font-size:11.5px; margin-left:6px}
+  #lineChosen{color:var(--ok)}
+  .chk{display:flex; align-items:center; gap:9px; cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ink)}
+  .chk input{width:18px; height:18px; accent-color:var(--accent); flex:none; cursor:pointer}
+  #leadwrap{margin-top:-4px; padding-left:27px}
+  .foot #notifchip{font-variant-numeric:tabular-nums}
+  .notif-status{margin-top:10px; font-size:12.5px; line-height:1.5; padding:9px 11px; border-radius:8px;
+    background:var(--surface-2); color:var(--muted)}
+  .notif-status.good{color:var(--ok); background:color-mix(in srgb,var(--ok) 12%,var(--surface-2))}
+  .notif-status.bad{color:var(--warn); background:color-mix(in srgb,var(--warn) 14%,var(--surface-2))}
+  .notif-status code{background:var(--bg); padding:1px 5px; border-radius:4px; font-size:11.5px}
+  #testNotif{margin-top:9px}
+  .row2{display:flex; gap:10px} .row2 .field{flex:1; min-width:0}
+  .actions{display:flex; gap:10px; margin-top:4px}
+  .btn{border:0; border-radius:9px; padding:10px 18px; font-size:14px; font-weight:700; cursor:pointer}
+  .btn.primary{background:var(--accent); color:#fff}
+  .btn.ghost{background:var(--surface-2); color:var(--ink)}
+  .btn.danger{background:var(--soon); color:#fff}
+  .btn:disabled{opacity:.4; cursor:default}
+  .btn:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+  details.help{margin-top:12px; font-size:12.5px; color:var(--muted)}
+  details.help summary{cursor:pointer; font-weight:600; color:var(--ink)}
+  details.help ol{margin:8px 0 0; padding-left:20px; line-height:1.7}
+  details.help a{color:var(--accent)}
+
+  /* --- Sélecteur de trajets (page) + éditeur (réglages) --- */
+  .trajets, .trajet-editor{display:flex; gap:8px; flex-wrap:nowrap; overflow-x:auto; scroll-snap-type:x proximity;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none}
+  .trajets{margin-bottom:12px; padding-bottom:2px}
+  .trajets::-webkit-scrollbar, .trajet-editor::-webkit-scrollbar{display:none}
+  .tj{flex:none; scroll-snap-align:start; border:1px solid var(--line); background:var(--surface); color:var(--muted); border-radius:999px;
+    padding:6px 13px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap}
+  .tj.active{color:#fff; background:var(--tc,var(--accent)); border-color:var(--tc,var(--accent))}
+  .tj.add{font-weight:800; padding:6px 11px}
+  .tj:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* --- Toggle Aller / Retour (segmenté animé) --- */
+  .tabs{display:block; margin-bottom:12px}
+  .segmented{position:relative; display:flex; width:100%; background:var(--surface-2);
+    border:1px solid var(--line); border-radius:13px; padding:4px; overflow:hidden; -webkit-tap-highlight-color:transparent}
+  .segmented .seg-thumb{position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:10px;
+    background:var(--tc,var(--accent)); box-shadow:0 2px 6px rgba(0,0,0,.18);
+    transition:transform .3s cubic-bezier(.34,1.3,.5,1)}
+  .segmented[data-active="1"] .seg-thumb{transform:translateX(100%)}
+  .segmented .seg{position:relative; z-index:1; flex:1; border:0; background:none; padding:10px 8px;
+    font-size:14px; font-weight:700; cursor:pointer; color:var(--muted); transition:color .22s}
+  .segmented .seg.on{color:#fff}
+  .segmented .seg:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:10px}
+
+  /* --- Bandeau infos trafic --- */
+  .alert-banner{display:flex; gap:10px; align-items:flex-start;
+    background:color-mix(in srgb,var(--warn) 13%,var(--surface));
+    border:1px solid color-mix(in srgb,var(--warn) 45%,var(--line)); border-radius:12px;
+    padding:11px 13px; margin-bottom:12px; font-size:12.5px; line-height:1.5; color:var(--ink)}
+  .alert-banner .ico{flex:none; font-size:15px; line-height:1.2}
+  .alert-banner b{color:var(--warn)}
+  .alert-banner .until{color:var(--faint); font-weight:600}
+  .alert-banner.block{background:color-mix(in srgb,var(--soon) 11%,var(--surface));
+    border-color:color-mix(in srgb,var(--soon) 45%,var(--line))}
+  .alert-banner.block b{color:var(--soon)}
+
+  /* --- Badge "attrapable" + retard --- */
+  .catch{display:inline-flex; align-items:center; gap:4px; font-size:12.5px; font-weight:700;
+    padding:3px 10px; border-radius:999px; margin-top:12px}
+  .catch.y{color:var(--ok); background:color-mix(in srgb,var(--ok) 14%,transparent)}
+  .catch.j{color:var(--warn); background:color-mix(in srgb,var(--warn) 17%,transparent)}
+  .catch.n{color:var(--soon); background:color-mix(in srgb,var(--soon) 14%,transparent)}
+  .li-catch{flex:none; font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; margin-right:2px}
+  .li-catch.y{color:var(--ok); background:color-mix(in srgb,var(--ok) 14%,transparent)}
+  .li-catch.j{color:var(--warn); background:color-mix(in srgb,var(--warn) 17%,transparent)}
+  .li-catch.n{color:var(--soon); background:color-mix(in srgb,var(--soon) 14%,transparent)}
+  .delay{color:var(--soon); font-weight:600} .delay.early{color:var(--ok)}
+
+  /* --- En-tête : groupe de boutons --- */
+  .hbtns{margin-left:auto; display:flex; gap:8px}
+  .hbtns .iconbtn{margin-left:0}
+
+  /* --- Mode borne (plein écran) --- */
+  body.kiosk .wrap{max-width:860px}
+  body.kiosk .big .mins{font-size:min(26vw,150px); letter-spacing:-4px}
+  body.kiosk .big .unit{font-size:28px}
+  body.kiosk .hero{padding:40px 34px}
+  body.kiosk .hero .dir{font-size:18px}
+  body.kiosk .hero .lbl{font-size:14px}
+  body.kiosk .catch{font-size:16px; padding:5px 14px}
+  body.kiosk .next-lbl, body.kiosk ul.list{display:none}
+  body.kiosk .foot .btn-f, body.kiosk #usage, body.kiosk #notifchip{display:none}
+  body.kiosk #gear{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="badge" id="hdrBadge">132</div>
+    <div class="htxt">
+      <div class="eyebrow" id="hdrMode">Bus</div>
+      <h1 id="hdrTitle">Prochains bus</h1>
+      <p id="hdrSub">Ivry-sur-Seine → <b>Bibliothèque F. Mitterrand</b></p>
+    </div>
+    <div class="hbtns">
+      <button class="iconbtn" id="kiosk" title="Mode borne (plein écran)" aria-label="Mode borne">⛶</button>
+      <button class="iconbtn" id="gear" title="Réglages" aria-label="Réglages">⚙</button>
+    </div>
+  </header>
+
+  <!-- Réglages (affiché tant que non configuré) -->
+  <section class="panel" id="panel" hidden>
+    <h2>Réglages</h2>
+    <p class="hint">Données temps réel via l'API PRIM d'Île-de-France Mobilités. Tes réglages restent sur cet appareil.</p>
+
+    <div class="field">
+      <label>Mes trajets</label>
+      <div class="trajet-editor" id="trajetEditor"></div>
+      <input id="trajetName" type="text" autocomplete="off" placeholder="Nom du trajet (ex. Bus 132)" style="margin-top:8px">
+      <div class="actions" style="margin-top:8px">
+        <button type="button" class="btn ghost" id="trajetLeft" title="Déplacer à gauche">◀</button>
+        <button type="button" class="btn ghost" id="trajetRight" title="Déplacer à droite">▶</button>
+        <button type="button" class="btn ghost" id="trajetDel">🗑 Supprimer ce trajet</button>
+      </div>
+      <div class="sub">Clique un trajet pour l'éditer (il devient actif), <b>＋</b> pour en ajouter, <b>◀ ▶</b> pour le réordonner. Les champs Ligne / Départ / Arrivée / Temps de marche ci-dessous concernent le trajet sélectionné.</div>
+    </div>
+
+    <div class="field line-field">
+      <label for="lineSearch">Ligne <span class="opt">(recherche)</span></label>
+      <input id="lineSearch" type="text" autocomplete="off" spellcheck="false" placeholder="tape un numéro ou un nom (ex. 132)">
+      <input id="lineref" type="hidden">
+      <div class="line-results" id="lineResults" hidden></div>
+      <div class="sub" id="lineChosen"></div>
+    </div>
+
+    <div class="field">
+      <label for="stopSearchDep">Arrêt de départ <span class="opt">(de la ligne)</span></label>
+      <input id="stopSearchDep" type="text" autocomplete="off" spellcheck="false" placeholder="choisis l'arrêt où tu montes" list="stopOptions">
+      <input id="departRef" type="hidden">
+      <datalist id="stopOptions"></datalist>
+      <div class="sub" id="departChosen"></div>
+    </div>
+
+    <div class="field">
+      <label for="stopSearchArr">Arrêt d'arrivée <span class="opt">(de la ligne)</span></label>
+      <input id="stopSearchArr" type="text" autocomplete="off" spellcheck="false" placeholder="choisis ta destination" list="stopOptions">
+      <input id="arriveRef" type="hidden">
+      <div class="sub" id="arriveChosen"></div>
+      <div class="sub">L'app affiche les prochains passages <b>départ → arrivée</b> (bon sens trouvé automatiquement). Onglets <b>Aller</b> (départ→arrivée) et <b>Retour</b> (arrivée→départ) automatiques.</div>
+    </div>
+
+    <div class="field">
+      <label for="walk">Temps de marche jusqu'à l'arrêt <span class="opt">(min)</span></label>
+      <input id="walk" type="number" min="0" max="60" step="1" inputmode="numeric" placeholder="5">
+      <div class="sub">Colore chaque passage : vert « tu l'as », orange « juste », rouge « trop tard » selon le temps qu'il te reste pour y aller.</div>
+    </div>
+
+    <div class="field">
+      <label class="chk"><input type="checkbox" id="heroCatchable"> Mettre en avant le 1ᵉʳ bus attrapable</label>
+      <div class="sub">Le grand encart affiche le prochain bus que tu peux réellement avoir (selon ton temps de marche) plutôt que le tout prochain. Décoché : toujours le prochain passage.</div>
+    </div>
+
+    <div class="field">
+      <label class="chk"><input type="checkbox" id="notify"> M'avertir avant le passage</label>
+      <div class="sub">Une notification du navigateur quand le prochain bus (vers ta direction) est à X minutes — le temps de sortir.</div>
+    </div>
+    <div class="field" id="leadwrap">
+      <div class="row2">
+        <div class="field">
+          <label for="prep">Préavis <span class="opt">(min)</span></label>
+          <input id="prep" type="number" min="1" max="60" step="1" inputmode="numeric" placeholder="10">
+        </div>
+        <div class="field">
+          <label for="lead">Pars maintenant <span class="opt">(min)</span></label>
+          <input id="lead" type="number" min="1" max="30" step="1" inputmode="numeric" placeholder="5">
+        </div>
+      </div>
+      <div class="sub">Deux notifs : « prépare-toi » au préavis, puis « pars maintenant » (≈ ton temps de marche). Elles partent à la seconde près, sans appel API en plus. Garde l'onglet ouvert.</div>
+      <div class="notif-status" id="notifStatus"></div>
+      <button type="button" class="btn ghost" id="testNotif">🔔 Tester l'alerte</button>
+    </div>
+
+    <h2 style="margin:18px 0 10px;font-size:14px">Réglages généraux</h2>
+
+    <div class="field">
+      <label for="apikey">Clé API PRIM</label>
+      <input id="apikey" type="text" autocomplete="off" spellcheck="false" placeholder="colle ici ton jeton PRIM">
+      <div class="sub">Commune à tous les trajets. Gratuit — crée un compte sur <a href="https://prim.iledefrance-mobilites.fr" target="_blank" rel="noopener">prim.iledefrance-mobilites.fr</a>, puis génère un jeton (API « Prochains passages »).</div>
+    </div>
+
+    <div class="field">
+      <label for="interval">Actualisation auto <span class="opt">(secondes)</span></label>
+      <input id="interval" type="number" min="30" step="10" inputmode="numeric" placeholder="90">
+      <div class="sub">Min 30 s. L'actualisation se met en pause quand l'onglet est en arrière-plan, pour économiser le quota (1000 appels/jour).</div>
+    </div>
+
+    <div class="field">
+      <label class="chk"><input type="checkbox" id="traffic"> Afficher les infos trafic de la ligne</label>
+      <div class="sub">Bandeau en cas de perturbation (déviation, arrêt non desservi). Best-effort, rafraîchi ~toutes les 10 min ; rien ne s'affiche si l'API ne répond pas.</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="save">Enregistrer</button>
+      <button class="btn ghost" id="cancel" hidden>Annuler</button>
+    </div>
+  </section>
+
+  <!-- Vue live -->
+  <section id="live" hidden>
+    <div class="trajets" id="trajets" hidden></div>
+    <div class="tabs" id="tabs" hidden></div>
+    <div class="alert-banner" id="banner" hidden></div>
+    <div class="hero" id="hero"></div>
+    <div class="next-lbl">Passages suivants</div>
+    <ul class="list" id="list"></ul>
+    <div class="foot">
+      <span class="pulse" id="pulse"></span>
+      <span id="status">—</span>
+      <span id="notifchip"></span>
+      <span class="usage" id="usage"></span>
+      <button class="btn-f" id="geoBtn">📍 Distance</button>
+      <button class="btn-f" id="geoSet" hidden></button>
+      <button class="btn-f" id="pause" aria-pressed="false">⏸ Pause</button>
+      <button class="btn-f" id="reload">Actualiser</button>
+    </div>
+  </section>
+
+  <!-- Chargement -->
+  <section id="loading" hidden>
+    <div class="skel" style="margin-bottom:12px"></div>
+    <div class="skel" style="height:48px"></div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var LS="bus132-ledru-rollin";
+  var CAP=1000;                       // appels max / jour (quota API)
+  var BG_MARGIN=6;                    // min avant la fenêtre d'alerte où on relance le polling en arrière-plan
+  var DEFAULTS={apikey:"",stopref:"",lineref:"STIF:Line::C01160:",dir:"Mitterrand",proxy:"",interval:90,
+    notify:false,lead:5,prep:10,walk:5,heroCatchable:true,lineLabel:"132 — bus",stopLabel:"",
+    lineColor:"640082",lineText:"ffffff",lineMode:"bus",
+    stop2ref:"",dir2:"",label1:"Aller",label2:"Retour",traffic:true};
+  // Un "trajet" = une ligne + son arrêt + ses 2 sens. Les réglages globaux (clé, intervalle, marche, notifs…) restent hors trajet.
+  var TRAJET_KEYS=["name","lineref","lineLabel","lineColor","lineText","lineMode","departRef","departLabel","departLat","departLon","arriveRef","arriveLabel","arriveLat","arriveLon","walk"];
+  function trajetName(c){ var ln=((c.lineLabel||"").split("—")[0]||"").trim(), sn=((c.departLabel||"").split("—")[0]||"").trim(); return (ln||"?")+(sn?" · "+sn:""); }
+  function trajetFromTop(c){ var t={}; TRAJET_KEYS.forEach(function(k){t[k]=c[k]||"";}); if(!t.name) t.name=trajetName(c); return t; }
+  function applyTopFromTrajet(t){ TRAJET_KEYS.forEach(function(k){cfg[k]=t[k]||"";}); }
+  var cfg=load(), timer=null, loadedOnce=false, paused=false, lastNext=null, notified=loadNotified();
+  var alertTimers=[], actx=null, activeTab=0, trafficAt=0, trafficMeta={messages:[],until:null,severity:"info"};
+  var lastItems=[], lastOkAt=0, tickTimer=null, lastPaintMin=null, destsByLine=loadDestsMap();
+  var lineStops=[], selDepartLabel="", selArriveLabel="", panelOpen=false;
+  var lastExceptions=[], lastFromCoord=null;
+
+  var $=function(id){return document.getElementById(id)};
+  var panel=$("panel"), live=$("live"), loading=$("loading");
+
+  function migrateTrajet(t){   // ancien modèle (stopref/direction) → nouveau (départ)
+    if(t && !t.departRef && t.stopref){ t.departRef=t.stopref; t.departLabel=t.stopLabel||""; }
+    return t;
+  }
+  function load(){
+    var c;
+    try{var r=JSON.parse(localStorage.getItem(LS));if(r&&typeof r==="object")c=Object.assign({},DEFAULTS,r);}catch(e){}
+    if(!c) c=Object.assign({},DEFAULTS);
+    migrateTrajet(c);
+    if(!Array.isArray(c.trajets)||!c.trajets.length){ c.trajets=[trajetFromTop(c)]; c.activeTrajet=0; }
+    c.trajets.forEach(migrateTrajet);
+    if(typeof c.activeTrajet!=="number"||c.activeTrajet<0||c.activeTrajet>=c.trajets.length) c.activeTrajet=0;
+    var t=c.trajets[c.activeTrajet]||{}; TRAJET_KEYS.forEach(function(k){ if(t[k]!=null) c[k]=t[k]; });
+    return c;
+  }
+  function save(){try{localStorage.setItem(LS,JSON.stringify(cfg));}catch(e){}}
+
+  function configured(){return cfg.apikey.trim() && (cfg.departRef||"").trim() && (cfg.arriveRef||"").trim();}
+
+  // Remplit les champs spécifiques au trajet actif (ligne / arrêt / direction / sens).
+  function fillTrajetFields(){
+    fetchLineStops(cfg.lineref);
+    $("lineref").value=cfg.lineref; $("lineSearch").value=cfg.lineLabel||""; selectedLineLabel=cfg.lineLabel||"";
+    selLineColor=cfg.lineColor||""; selLineText=cfg.lineText||""; selLineMode=cfg.lineMode||"";
+    $("lineChosen").textContent=cfg.lineref?("Filtre actuel : "+(cfg.lineLabel||cfg.lineref)):"Aucun filtre ligne";
+    $("lineResults").hidden=true;
+    $("departRef").value=cfg.departRef||""; $("stopSearchDep").value=cfg.departLabel||""; selDepartLabel=cfg.departLabel||"";
+    if($("departChosen")) $("departChosen").textContent=cfg.departRef?("Départ : "+(cfg.departLabel||cfg.departRef)):"Choisis l'arrêt de départ";
+    $("arriveRef").value=cfg.arriveRef||""; $("stopSearchArr").value=cfg.arriveLabel||""; selArriveLabel=cfg.arriveLabel||"";
+    if($("arriveChosen")) $("arriveChosen").textContent=cfg.arriveRef?("Arrivée : "+(cfg.arriveLabel||cfg.arriveRef)):"Choisis l'arrêt d'arrivée";
+    $("walk").value=clampWalk();
+    var cur=cfg.trajets[cfg.activeTrajet]; if($("trajetName")) $("trajetName").value=(cur&&cur.name)||"";
+    if(typeof resetDel==="function") resetDel();
+    renderHeader();
+  }
+  function openPanel(){
+    $("apikey").value=cfg.apikey;
+    $("interval").value=cfg.interval;
+    $("heroCatchable").checked=cfg.heroCatchable;
+    $("traffic").checked=cfg.traffic;
+    $("notify").checked=cfg.notify; $("lead").value=cfg.lead; $("prep").value=cfg.prep; $("leadwrap").hidden=!cfg.notify;
+    renderTrajetEditor(); fillTrajetFields();
+    renderNotifStatus();
+    $("cancel").hidden=!configured();
+    panelOpen=true; stopTimer();                 // on gèle l'actualisation pendant la config
+    panel.hidden=false; live.hidden=true; loading.hidden=true;
+    (configured()?$("lineSearch"):$("apikey")).focus();
+  }
+  function closePanel(){panelOpen=false; panel.hidden=true;}
+
+  // --- Multi-trajets ---
+  function commitFormToActive(){   // copie (sync) les champs du formulaire dans le trajet actif
+    cfg.departRef=$("departRef").value.trim(); cfg.departLabel=$("stopSearchDep").value.trim();
+    cfg.arriveRef=$("arriveRef").value.trim(); cfg.arriveLabel=$("stopSearchArr").value.trim();
+    cfg.lineref=$("lineref").value.trim(); cfg.lineLabel=$("lineSearch").value.trim();
+    cfg.lineColor=selLineColor; cfg.lineText=selLineText; cfg.lineMode=selLineMode;
+    var wk=parseInt($("walk").value,10); cfg.walk=(isNaN(wk)||wk<0)?5:(wk>60?60:wk);
+    var nm=$("trajetName")?$("trajetName").value.trim():""; cfg.name=nm||trajetName(cfg);
+    cfg.trajets[cfg.activeTrajet]=trajetFromTop(cfg);
+  }
+  function editTrajet(idx){        // bascule le trajet édité DANS le panneau (sans fermer)
+    if(idx<0||idx>=cfg.trajets.length||idx===cfg.activeTrajet) { if(idx===cfg.activeTrajet) return; return; }
+    commitFormToActive();
+    cfg.activeTrajet=idx; applyTopFromTrajet(cfg.trajets[idx]);
+    renderTrajetEditor(); fillTrajetFields();
+  }
+  function newTrajet(){
+    commitFormToActive();
+    var t={name:"Nouveau trajet", lineref:"",lineLabel:"",lineColor:"",lineText:"",lineMode:"",
+      departRef:"",departLabel:"",departLat:"",departLon:"",arriveRef:"",arriveLabel:"",arriveLat:"",arriveLon:"", walk:5};
+    cfg.trajets.push(t); cfg.activeTrajet=cfg.trajets.length-1; applyTopFromTrajet(t);
+    renderTrajetEditor(); fillTrajetFields();
+  }
+  function delTrajet(){
+    if(cfg.trajets.length<=1) return;
+    cfg.trajets.splice(cfg.activeTrajet,1);
+    cfg.activeTrajet=Math.max(0,cfg.activeTrajet-1);
+    applyTopFromTrajet(cfg.trajets[cfg.activeTrajet]);
+    renderTrajetEditor(); fillTrajetFields();
+  }
+  function moveTrajet(dir){
+    var i=cfg.activeTrajet, j=i+dir;
+    if(j<0||j>=cfg.trajets.length) return;
+    commitFormToActive();
+    var tmp=cfg.trajets[i]; cfg.trajets[i]=cfg.trajets[j]; cfg.trajets[j]=tmp;
+    cfg.activeTrajet=j; applyTopFromTrajet(cfg.trajets[j]);
+    renderTrajetEditor(); fillTrajetFields();
+  }
+  function renderTrajetEditor(){
+    var el=$("trajetEditor"); if(!el) return;
+    if($("trajetLeft")) $("trajetLeft").disabled=(cfg.activeTrajet<=0);
+    if($("trajetRight")) $("trajetRight").disabled=(cfg.activeTrajet>=cfg.trajets.length-1);
+    el.innerHTML=(cfg.trajets||[]).map(function(t,i){
+      var col=t.lineColor?(' style="--tc:#'+t.lineColor+'"'):"";
+      return '<button type="button" data-i="'+i+'" class="tj'+(i===cfg.activeTrajet?" active":"")+'"'+col+'>'+esc(t.name||("Trajet "+(i+1)))+'</button>';
+    }).join("")+'<button type="button" id="trajetNew" class="tj add">＋</button>';
+    Array.prototype.forEach.call(el.querySelectorAll("button[data-i]"),function(b){
+      b.addEventListener("click",function(){ editTrajet(+b.getAttribute("data-i")); });
+    });
+    var nb=el.querySelector("#trajetNew"); if(nb) nb.addEventListener("click",newTrajet);
+    if($("trajetDel")) $("trajetDel").disabled=(cfg.trajets.length<=1);
+  }
+  // Sélecteur sur la page (bascule le trajet ACTIF affiché)
+  function renderTrajets(){
+    var el=$("trajets"); if(!el) return;
+    var ts=cfg.trajets||[];
+    if(ts.length<2){ el.hidden=true; el.innerHTML=""; return; }
+    el.hidden=false;
+    el.innerHTML=ts.map(function(t,i){
+      var col=t.lineColor?(' style="--tc:#'+t.lineColor+'"'):"";
+      return '<button type="button" data-i="'+i+'" class="tj'+(i===cfg.activeTrajet?" active":"")+'"'+col+'>'+esc(t.name||("Trajet "+(i+1)))+'</button>';
+    }).join("");
+    Array.prototype.forEach.call(el.querySelectorAll("button[data-i]"),function(b){
+      b.addEventListener("click",function(){ switchTrajet(+b.getAttribute("data-i")); });
+    });
+  }
+  function switchTrajet(idx){
+    if(idx<0||idx>=cfg.trajets.length||idx===cfg.activeTrajet) return;
+    cfg.activeTrajet=idx; applyTopFromTrajet(cfg.trajets[idx]);
+    activeTab=0; trafficAt=0; trafficMeta={messages:[],until:null,severity:"info"};
+    save(); start();
+  }
+
+  $("gear").addEventListener("click",openPanel);
+  $("trajetLeft").addEventListener("click",function(){moveTrajet(-1);});
+  $("trajetRight").addEventListener("click",function(){moveTrajet(1);});
+  var delArmed=false, delTimer=null;
+  function resetDel(){ delArmed=false; if(delTimer){clearTimeout(delTimer);delTimer=null;} var b=$("trajetDel"); if(b){b.textContent="🗑 Supprimer ce trajet"; b.classList.remove("danger");} }
+  $("trajetDel").addEventListener("click",function(){
+    if(cfg.trajets.length<=1){ this.textContent="Au moins un trajet requis"; var self=this; setTimeout(function(){self.textContent="🗑 Supprimer ce trajet";},1800); return; }
+    if(!delArmed){ delArmed=true; this.textContent="⚠️ Confirmer la suppression ?"; this.classList.add("danger"); delTimer=setTimeout(resetDel,4000); return; }
+    resetDel(); delTrajet();
+  });
+  $("cancel").addEventListener("click",function(){closePanel();start();});
+  $("save").addEventListener("click", async function(){
+    cfg.apikey=$("apikey").value.trim();
+    // Départ / arrivée : résout le texte tapé si pas déjà choisi dans la liste.
+    resolveLegField("dep"); resolveLegField("arr");
+    cfg.departRef=$("departRef").value.trim(); cfg.departLabel=$("stopSearchDep").value.trim();
+    cfg.arriveRef=$("arriveRef").value.trim(); cfg.arriveLabel=$("stopSearchArr").value.trim();
+    // Ligne : si le texte tapé ne correspond pas à la ligne choisie, on la résout automatiquement.
+    var typed=$("lineSearch").value.trim();
+    if(typed && typed!==selectedLineLabel){
+      var res=await resolveLine(typed);
+      if(res){ $("lineref").value=res.lineref; $("lineSearch").value=res.label; selectedLineLabel=res.label;
+               selLineColor=res.color; selLineText=res.text; selLineMode=res.mode; }
+    }
+    var lr=$("lineref").value.trim();
+    if(!lr){ var s=$("lineSearch").value.trim(); if(/^STIF:Line::/.test(s)) lr=s; else lr=cfg.lineref; }
+    cfg.lineref=lr;
+    cfg.lineLabel=$("lineSearch").value.trim();
+    cfg.lineColor=selLineColor; cfg.lineText=selLineText; cfg.lineMode=selLineMode;
+    var iv=parseInt($("interval").value,10); cfg.interval=(!iv||iv<30)?30:iv;
+    var wk=parseInt($("walk").value,10); cfg.walk=(isNaN(wk)||wk<0)?5:(wk>60?60:wk);
+    cfg.heroCatchable=$("heroCatchable").checked;
+    cfg.traffic=$("traffic").checked;
+    if(!cfg.arriveRef) activeTab=0;
+    trafficAt=0; trafficMeta={messages:[],until:null,severity:"info"};   // forcer un re-fetch trafic
+    cfg.notify=$("notify").checked;
+    var ld=parseInt($("lead").value,10); cfg.lead=(!ld||ld<1)?5:(ld>30?30:ld);
+    var pr=parseInt($("prep").value,10); cfg.prep=(!pr||pr<1)?10:(pr>60?60:pr);
+    if(cfg.notify){
+      audioInit();                       // débloque le son via ce geste utilisateur
+      if(("Notification" in window) && Notification.permission==="default"){try{Notification.requestPermission();}catch(e){}}
+    }
+    var nm=$("trajetName")?$("trajetName").value.trim():""; cfg.name=nm||trajetName(cfg);
+    cfg.trajets[cfg.activeTrajet]=trajetFromTop(cfg);     // persiste le trajet actif
+    save(); closePanel(); start();
+  });
+  $("reload").addEventListener("click",function(){audioInit(); refresh(true);});
+  $("pause").addEventListener("click",function(){audioInit(); togglePause();});
+
+  // --- Distance jusqu'à l'arrêt de départ (géolocalisation) ---
+  var geoMins=0;
+  function distM(la1,lo1,la2,lo2){ var R=6371000,t=Math.PI/180,dLa=(la2-la1)*t,dLo=(lo2-lo1)*t;
+    var a=Math.sin(dLa/2)*Math.sin(dLa/2)+Math.cos(la1*t)*Math.cos(la2*t)*Math.sin(dLo/2)*Math.sin(dLo/2);
+    return 2*R*Math.asin(Math.min(1,Math.sqrt(a))); }
+  $("geoBtn").addEventListener("click",function(){
+    var btn=this;
+    if(!window.isSecureContext){ btn.textContent="📍 localisation : https/localhost requis"; return; }
+    if(!navigator.geolocation){ btn.textContent="📍 non dispo ici"; return; }
+    var leg=activeLeg();
+    var coord=(leg && leg.from.lat && leg.from.lon) ? {lat:+leg.from.lat,lon:+leg.from.lon} : lastFromCoord;
+    if(!coord || isNaN(coord.lat) || isNaN(coord.lon)){ btn.textContent="📍 position de l'arrêt inconnue — actualise d'abord"; return; }
+    btn.textContent="📍 localisation…";
+    var done=false, fb=setTimeout(function(){ if(!done){done=true; btn.textContent="📍 délai dépassé, réessaie";} },12000);
+    try{
+      navigator.geolocation.getCurrentPosition(function(pos){
+        if(done)return; done=true; clearTimeout(fb);
+        var d=distM(pos.coords.latitude,pos.coords.longitude, coord.lat, coord.lon);
+        geoMins=Math.max(1,Math.ceil(d/80));          // ~4,8 km/h
+        btn.textContent="📍 "+(d<1000?Math.round(d)+" m":(d/1000).toFixed(1)+" km")+" · "+geoMins+" min à pied";
+        var g=$("geoSet"); if(g){ g.hidden=false; g.textContent="→ régler marche ("+geoMins+" min)"; }
+      }, function(err){
+        if(done)return; done=true; clearTimeout(fb);
+        btn.textContent=(err&&err.code===1)?"📍 refusée — autorise la localisation (icône du cadenas)":"📍 position indisponible";
+      }, {enableHighAccuracy:true, timeout:10000, maximumAge:30000});
+    }catch(e){ done=true; clearTimeout(fb); btn.textContent="📍 erreur localisation"; }
+  });
+  $("geoSet").addEventListener("click",function(){
+    if(!geoMins) return;
+    cfg.walk=geoMins; if(cfg.trajets[cfg.activeTrajet]) cfg.trajets[cfg.activeTrajet].walk=geoMins; save();
+    this.hidden=true; paint();                        // recolore « attrapable »
+    $("geoBtn").textContent="📍 marche réglée : "+geoMins+" min";
+  });
+  $("kiosk").addEventListener("click",toggleKiosk);
+  document.addEventListener("fullscreenchange",function(){ if(!document.fullscreenElement) document.body.classList.remove("kiosk"); });
+
+  // --- Recherche de ligne (référentiel IDFM open-data, sans clé) ---
+  var lineSearchT=null, selectedLineLabel="", selLineColor="", selLineText="", selLineMode="";
+  $("lineSearch").addEventListener("input",function(){
+    var q=this.value.trim();
+    if(lineSearchT) clearTimeout(lineSearchT);
+    if(q.length<1){ $("lineResults").hidden=true; return; }
+    lineSearchT=setTimeout(function(){searchLines(q);},250);
+  });
+  $("lineSearch").addEventListener("keydown",function(e){
+    if(e.key==="Enter"){
+      var b=$("lineResults").querySelector("button[data-id]");
+      if(b && !$("lineResults").hidden){ e.preventDefault(); b.click(); }
+    }
+  });
+  $("stopSearchDep").addEventListener("change",function(){ var e=findStop(this.value); if(e) applyLeg(e,"depart"); });
+  $("stopSearchArr").addEventListener("change",function(){
+    var v=this.value.trim();
+    if(!v){ $("arriveRef").value=""; if($("arriveChosen")) $("arriveChosen").textContent=""; return; }
+    var e=findStop(v); if(e) applyLeg(e,"arrive");
+  });
+  // Résout un texte de ligne ("95", un nom, ou un id STIF) en {lineref,label} via le référentiel IDFM.
+  function resolveLine(text){
+    var t=(text||"").trim();
+    if(!t) return Promise.resolve(null);
+    if(/^STIF:Line::/.test(t)) return Promise.resolve({lineref:t,label:t});
+    var u="https://data.iledefrance-mobilites.fr/api/records/1.0/search/?dataset=referentiel-des-lignes&rows=12&q="+encodeURIComponent(t);
+    return fetch(u).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      var recs=(j&&j.records)||[]; if(!recs.length) return null;
+      var exact=null;
+      for(var i=0;i<recs.length;i++){ var f=recs[i].fields||{}; if(((f.shortname_line||"")+"").toLowerCase()===t.toLowerCase()){ exact=recs[i]; break; } }
+      var f2=((exact||recs[0]).fields)||{}, id=f2.id_line||""; if(!id) return null;
+      return {lineref:"STIF:Line::"+id+":", label:(f2.shortname_line||f2.name_line||id)+" — "+modeLabel(f2.transportmode||""),
+              color:f2.colourweb_hexa||"", text:f2.textcolourweb_hexa||"", mode:f2.transportmode||""};
+    }).catch(function(){return null;});
+  }
+  // Directions RÉELLES d'une ligne via Navitia (routes) → remplit les suggestions dès qu'on choisit la ligne.
+  function lineId(lineref){ var m=/STIF:Line::?([A-Za-z0-9]+):/.exec(lineref||""); return m?m[1]:""; }
+  function fetchLineDirections(lineref){
+    if(!cfg.apikey || !lineref) return;
+    var id=lineId(lineref); if(!id) return;
+    var base="https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia/lines/line:IDFM:"+id+"/routes?depth=2&count=25";
+    var u=cfg.proxy?cfg.proxy+encodeURIComponent(base):base;
+    fetch(u,{headers:{apikey:cfg.apikey,Accept:"application/json"}})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(j){
+        if(!j) return;
+        var arr=destsByLine[lineref]||(destsByLine[lineref]=[]), chg=false;
+        (j.routes||[]).forEach(function(rt){
+          var n=((rt.direction&&rt.direction.name)||rt.name||"").toString().trim();
+          if(n && arr.indexOf(n)<0){ arr.push(n); chg=true; }
+        });
+        if(chg){ saveDestsMap(); renderDirOptions(); }
+      }).catch(function(){ /* silencieux : on garde les destinations apprises en live */ });
+  }
+
+  // Arrêts d'une ligne via l'open-data arrets-lignes (sans clé) → liste déroulante du champ Arrêt.
+  function fetchLineStops(lineref){
+    lineStops=[]; renderStopOptions();
+    var id=lineId(lineref); if(!id) return;
+    var u="https://data.iledefrance-mobilites.fr/api/records/1.0/search/?dataset=arrets-lignes&rows=500&q="+encodeURIComponent(id);
+    fetch(u).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      if(!j) return;
+      var map={};
+      (j.records||[]).forEach(function(rec){
+        var f=rec.fields||{}; if(!f.stop_name) return;
+        var arrid=(f.stop_id||"").replace("IDFM:",""); if(!arrid) return;
+        var k=f.stop_name+"|"+(f.nom_commune||"");
+        var e=map[k]||(map[k]={name:f.stop_name,town:f.nom_commune||"",arrids:[],lat:f.stop_lat||"",lon:f.stop_lon||""});
+        if(e.arrids.indexOf(arrid)<0) e.arrids.push(arrid);
+        if(!e.lat&&f.stop_lat) e.lat=f.stop_lat; if(!e.lon&&f.stop_lon) e.lon=f.stop_lon;
+      });
+      lineStops=Object.keys(map).map(function(k){var e=map[k]; e.label=e.name+(e.town?" — "+e.town:""); return e;})
+        .sort(function(a,b){return a.label.localeCompare(b.label,"fr");});
+      renderStopOptions();
+    }).catch(function(){});
+  }
+  function renderStopOptions(){
+    var el=$("stopOptions"); if(!el) return;
+    el.innerHTML=lineStops.map(function(s){return '<option value="'+esc(s.label)+'"></option>';}).join("");
+  }
+  function findStop(label){
+    var t=(label||"").trim().toLowerCase(); if(!t) return null;
+    var i; for(i=0;i<lineStops.length;i++){ if(lineStops[i].label.toLowerCase()===t) return lineStops[i]; }
+    for(i=0;i<lineStops.length;i++){ if(lineStops[i].name.toLowerCase()===t) return lineStops[i]; }
+    return null;
+  }
+  function arridOf(ref){ var m=/Q:(\d+):/.exec(ref||""); return m?m[1]:""; }
+  // Pose un arrêt comme départ ou arrivée (ref quai + coordonnées pour l'itinéraire).
+  function applyLeg(entry, which){
+    if(!entry) return;
+    var q=entry.arrids[0]||"", ref=q?("STIF:StopPoint:Q:"+q+":"):"";
+    if(which==="arrive"){
+      $("arriveRef").value=ref; $("stopSearchArr").value=entry.label; selArriveLabel=entry.label;
+      cfg.arriveLat=entry.lat||""; cfg.arriveLon=entry.lon||"";
+      if($("arriveChosen")) $("arriveChosen").textContent="Arrivée : "+entry.label;
+    } else {
+      $("departRef").value=ref; $("stopSearchDep").value=entry.label; selDepartLabel=entry.label;
+      cfg.departLat=entry.lat||""; cfg.departLon=entry.lon||"";
+      if($("departChosen")) $("departChosen").textContent="Départ : "+entry.label;
+    }
+  }
+  function resolveLegField(which){
+    var fld=which==="arr"?"stopSearchArr":"stopSearchDep", refId=which==="arr"?"arriveRef":"departRef",
+        selLbl=which==="arr"?selArriveLabel:selDepartLabel;
+    var typed=$(fld).value.trim();
+    if(!typed || typed===selLbl) return;
+    var e=findStop(typed);
+    if(e){ applyLeg(e, which==="arr"?"arrive":"depart"); }
+    else if(/^STIF:Stop/i.test(typed)){ $(refId).value=typed; }
+    else if(/^\d+$/.test(typed)){ $(refId).value="STIF:StopPoint:Q:"+typed+":"; }
+  }
+  document.addEventListener("click",function(e){
+    if(!(e.target.closest && e.target.closest(".line-field"))) $("lineResults").hidden=true;
+  });
+  function searchLines(q){
+    var u="https://data.iledefrance-mobilites.fr/api/records/1.0/search/?dataset=referentiel-des-lignes&rows=12&q="+encodeURIComponent(q);
+    fetch(u).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      var el=$("lineResults"), recs=(j&&j.records)||[];
+      if(!recs.length){ el.innerHTML='<button type="button" disabled style="color:var(--faint);cursor:default">Aucune ligne trouvée</button>'; el.hidden=false; return; }
+      el.innerHTML=recs.map(function(x){
+        var f=x.fields||{}, id=f.id_line||"", sn=f.shortname_line||f.name_line||id, mode=f.transportmode||"", op=f.operatorname||"";
+        var col=f.colourweb_hexa||"", txt=f.textcolourweb_hexa||"";
+        var lab=sn+" — "+modeLabel(mode);
+        return '<button type="button" data-id="'+esc(id)+'" data-label="'+esc(lab)+'" data-color="'+esc(col)+'" data-text="'+esc(txt)+'" data-mode="'+esc(mode)+'">'+esc(sn)+
+          '<span class="mode">'+esc(modeLabel(mode))+(op?" · "+esc(op):"")+'</span></button>';
+      }).join("");
+      Array.prototype.forEach.call(el.querySelectorAll("button[data-id]"),function(b){
+        b.addEventListener("click",function(){
+          var id=b.getAttribute("data-id"), lab=b.getAttribute("data-label");
+          $("lineref").value=id?("STIF:Line::"+id+":"):"";
+          $("lineSearch").value=lab; selectedLineLabel=lab;
+          selLineColor=b.getAttribute("data-color")||""; selLineText=b.getAttribute("data-text")||""; selLineMode=b.getAttribute("data-mode")||"";
+          applyBadgeStyle(selLineColor,selLineText); if($("hdrMode")) $("hdrMode").textContent=modeLabel(selLineMode);
+          $("lineChosen").textContent="Filtre : "+lab+" ("+$("lineref").value+")";
+          el.hidden=true;
+          fetchLineStops($("lineref").value);       // arrêts de la nouvelle ligne
+          // la ligne a changé → on vide départ/arrivée (à re-choisir dans la nouvelle ligne)
+          $("departRef").value=""; $("stopSearchDep").value=""; selDepartLabel=""; cfg.departLat=""; cfg.departLon="";
+          $("arriveRef").value=""; $("stopSearchArr").value=""; selArriveLabel=""; cfg.arriveLat=""; cfg.arriveLon="";
+          if($("departChosen")) $("departChosen").textContent="Choisis l'arrêt de départ";
+          if($("arriveChosen")) $("arriveChosen").textContent="Choisis l'arrêt d'arrivée";
+        });
+      });
+      el.hidden=false;
+    }).catch(function(){
+      var el=$("lineResults");
+      el.innerHTML='<button type="button" disabled style="color:var(--faint);cursor:default">Recherche indisponible (hors-ligne ?)</button>';
+      el.hidden=false;
+    });
+  }
+  $("notify").addEventListener("change",function(){$("leadwrap").hidden=!this.checked; renderNotifStatus();});
+  $("testNotif").addEventListener("click",function(){
+    audioInit();
+    if(!("Notification" in window)){ renderNotifStatus(); fireTest(); return; }
+    if(Notification.permission==="default"){
+      try{Notification.requestPermission().then(function(){renderNotifStatus(); fireTest();});}catch(e){ renderNotifStatus(); fireTest(); }
+    } else { renderNotifStatus(); fireTest(); }
+  });
+
+  function notifState(){
+    if(!("Notification" in window)) return {cls:"bad",html:"Ce navigateur ne gère pas les notifications web ici. Le son et la vibration peuvent encore marcher."};
+    if(location.protocol==="file:") return {cls:"bad",html:"Notifications bloquées : la page est ouverte en fichier local (<code>file://</code>). Dans le dossier du fichier, lance <code>python3 -m http.server 8000</code> puis ouvre <code>http://localhost:8000/index.html</code>. Le son/vibration, eux, marchent déjà."};
+    if(Notification.permission==="denied") return {cls:"bad",html:"Notifications refusées pour ce site. Réautorise-les via l'icône 🔒 de la barre d'adresse, puis reteste."};
+    if(Notification.permission==="granted") return {cls:"good",html:"Notifications autorisées ✓ — clique « Tester l'alerte » pour vérifier."};
+    return {cls:"",html:"Clique « Tester l'alerte » pour autoriser et vérifier les notifications."};
+  }
+  function renderNotifStatus(){
+    var el=$("notifStatus"); if(!el) return;
+    var s=notifState(); el.className="notif-status"+(s.cls?" "+s.cls:""); el.innerHTML=s.html;
+  }
+  function fireTest(){
+    if(("Notification" in window) && Notification.permission==="granted"){
+      try{var n=new Notification("🚌 Test — alerte bus 132",{body:"Si tu vois ceci, les notifications fonctionnent."});
+        n.onclick=function(){try{window.focus();}catch(e){} try{this.close();}catch(e){}};}catch(e){}
+    }
+    if(navigator.vibrate){try{navigator.vibrate([180,70,180]);}catch(e){}}
+    ping(true);
+  }
+
+  function clampInterval(){var n=parseInt(cfg.interval,10); return (!n||n<30)?30:n;}
+  function clampLead(){var n=parseInt(cfg.lead,10); return (!n||n<1)?5:(n>30?30:n);}
+  function clampPrep(){var n=parseInt(cfg.prep,10); return (!n||n<1)?10:(n>60?60:n);}
+  function topTier(){return Math.max(clampLead(),clampPrep());}
+  function armed(){return cfg.notify && lastNext!=null && lastNext>-2 && lastNext<=topTier()+BG_MARGIN;}
+  function stopTimer(){if(timer){clearInterval(timer);timer=null;}}
+  function schedule(){
+    stopTimer();
+    if(paused || panelOpen || !configured()) return;
+    if(document.hidden && !armed()) return;            // arrière-plan : polling seulement si un bus approche (alerte)
+    var sec=clampInterval();
+    if(armed()) sec=Math.min(sec,45);                  // plus réactif près du seuil d'alerte
+    timer=setInterval(function(){refresh(false);},sec*1000);
+  }
+  function start(){
+    stopTimer(); loadedOnce=false; panelOpen=false;
+    if(!configured()){openPanel();return;}
+    renderUsage(); renderChip(); renderTrajets(); renderTabs(); renderBanner(); renderHeader();
+    if(!paused && !document.hidden) refresh(true);
+    schedule();
+  }
+
+  function togglePause(){
+    paused=!paused;
+    var b=$("pause");
+    b.textContent=paused?"▶ Reprendre":"⏸ Pause";
+    b.classList.toggle("paused",paused);
+    b.setAttribute("aria-pressed",paused?"true":"false");
+    if(paused){stopTimer(); setPulse("idle"); $("status").textContent="En pause";}
+    else{ if(!document.hidden) refresh(true); schedule(); }
+  }
+
+  document.addEventListener("visibilitychange",function(){
+    if(document.hidden){ schedule(); }                  // garde le timer seulement si une alerte est armée
+    else if(!paused && configured()){ refresh(true); schedule(); }
+  });
+
+  // --- Notifications "pars maintenant" ---
+  function loadNotified(){
+    try{var o=JSON.parse(localStorage.getItem(LS+"-notif")); if(o&&o.date===todayKey())return new Set(o.keys);}catch(e){}
+    return new Set();
+  }
+  function saveNotified(){try{localStorage.setItem(LS+"-notif",JSON.stringify({date:todayKey(),keys:Array.from(notified)}));}catch(e){}}
+
+  // Destinations réelles vues à l'arrêt, MÉMORISÉES PAR LIGNE → suggestions du champ Direction
+  function loadDestsMap(){
+    try{var o=JSON.parse(localStorage.getItem(LS+"-dests")); if(o&&typeof o==="object"&&!Array.isArray(o)) return o;}catch(e){}
+    return {};   // (ancien format tableau ignoré → repart propre)
+  }
+  function saveDestsMap(){try{localStorage.setItem(LS+"-dests",JSON.stringify(destsByLine));}catch(e){}}
+  function currentPanelLine(){ var el=$("lineref"); return (el&&el.value)||cfg.lineref||""; }
+  function renderDirOptions(){
+    var el=$("dirOptions"); if(!el) return;
+    var arr=(destsByLine[currentPanelLine()]||[]).slice().sort();
+    el.innerHTML=arr.map(function(d){return '<option value="'+esc(d)+'"></option>';}).join("");
+  }
+  // Paliers d'alerte : préavis (si > départ) puis départ
+  function tiers(){
+    var go=clampLead(), prep=clampPrep(), t=[{min:go,kind:"go"}];
+    if(prep>go) t.unshift({min:prep,kind:"prep"});
+    return t;
+  }
+  function clearAlerts(){alertTimers.forEach(clearTimeout); alertTimers=[];}
+
+  // (1) Déclenchement PRÉCIS : on arme un setTimeout exactement à (départ − palier), sans appel API.
+  function scheduleAlerts(items){
+    clearAlerts();
+    if(!cfg.notify || !items.length) return;
+    if(!("Notification" in window) || Notification.permission!=="granted") return;
+    var now=Date.now();
+    items.slice(0,5).forEach(function(x){
+      var iso=x.time.toISOString();
+      tiers().forEach(function(t){
+        var dkey=iso+"|"+t.kind;
+        if(notified.has(dkey)) return;
+        var delay=(x.time.getTime()-t.min*60000)-now;
+        if(delay<-20000) return;          // palier déjà dépassé de plus de 20 s → on laisse tomber
+        if(delay>3600000) return;         // plus d'1 h → on (re)programmera à un cycle suivant
+        if(delay<0) delay=0;              // on est déjà dans la fenêtre → immédiat
+        alertTimers.push(setTimeout(function(){fireAlert(x,t);}, delay));
+      });
+    });
+  }
+  function fireAlert(x,t){
+    var key=x.time.toISOString()+"|"+t.kind;
+    if(notified.has(key)) return;
+    notified.add(key); saveNotified();
+    var m=Math.max(0,Math.round((x.time-Date.now())/60000));
+    var go=t.kind==="go";
+    var title=go?"🚌 Bus 132 — pars maintenant":"🚌 Bus 132 — prépare-toi";
+    var body=(go?"Départ dans "+m+" min ":"Prochain bus dans "+m+" min ")+"("+fmtClock(x.time)+") vers "+(x.dest||"ta direction")+".";
+    if(("Notification" in window) && Notification.permission==="granted"){
+      try{
+        var n=new Notification(title,{body:body,tag:"bus132-"+key,requireInteraction:go});
+        n.onclick=function(){try{window.focus();}catch(e){} try{this.close();}catch(e){}};
+      }catch(e){}
+    }
+    if(navigator.vibrate){try{navigator.vibrate(go?[180,70,180,70,180]:[120]);}catch(e){}}
+    ping(go);                              // (3) son
+  }
+
+  // (3) Son via WebAudio — débloqué par un geste utilisateur (Enregistrer / boutons)
+  function audioInit(){
+    try{
+      if(!actx){var AC=window.AudioContext||window.webkitAudioContext; if(AC) actx=new AC();}
+      if(actx && actx.state==="suspended") actx.resume();
+    }catch(e){}
+  }
+  function ping(go){
+    if(!actx) return;
+    try{
+      var o=actx.createOscillator(), g=actx.createGain(), t=actx.currentTime, dur=go?0.55:0.32;
+      o.type="sine";
+      o.frequency.setValueAtTime(go?784:560,t);
+      if(go) o.frequency.setValueAtTime(1175,t+0.2);
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.28,t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g); g.connect(actx.destination);
+      o.start(t); o.stop(t+dur+0.02);
+    }catch(e){}
+  }
+
+  function renderChip(){
+    var el=$("notifchip"); if(!el) return;
+    if(!cfg.notify){el.textContent=""; return;}
+    if(("Notification" in window) && Notification.permission==="denied"){el.textContent="🔔 bloqué"; el.style.color="var(--warn)"; return;}
+    var go=clampLead(), prep=clampPrep();
+    el.textContent="🔔 "+(prep>go?prep+"/"+go:go)+" min"; el.style.color="var(--accent)";
+  }
+
+  // En-tête dynamique : n° de ligne, arrêt, commune → destination active
+  function lineShortName(){ var l=(((cfg.lineLabel||"").split("—")[0])||"").trim(); return l || lineId(cfg.lineref) || "?"; }
+  function nameOfLabel(lbl){ return ((((lbl||"").split("—")[0])||"").trim()); }
+  function modeLabel(m){
+    m=(m||"").toLowerCase();
+    return ({bus:"Bus",metro:"Métro",tram:"Tram",rail:"Train",rapidtransit:"RER",funicular:"Funiculaire"})[m]
+      || (m?m.charAt(0).toUpperCase()+m.slice(1):"");
+  }
+  function hx(c){ c=(c||"").trim().replace(/^#/,""); return /^[0-9a-fA-F]{6}$/.test(c)?("#"+c):""; }
+  function applyBadgeStyle(color,text){
+    var b=$("hdrBadge"); if(!b) return;
+    b.style.background=hx(color)||"var(--accent)";
+    b.style.color=hx(text)||"#fff";
+  }
+  function renderHeader(){
+    var b=$("hdrBadge");
+    if(b){ var s=lineShortName(); b.textContent=s; b.style.fontSize=(s.length>4?"13px":(s.length>3?"16px":"19px")); }
+    applyBadgeStyle(cfg.lineColor,cfg.lineText);
+    if($("hdrMode")) $("hdrMode").textContent=modeLabel(cfg.lineMode);
+    var leg=activeLeg();
+    var from=leg?nameOfLabel(leg.from.label):nameOfLabel(cfg.departLabel);
+    var to=leg?nameOfLabel(leg.to.label):nameOfLabel(cfg.arriveLabel);
+    if($("hdrTitle")) $("hdrTitle").textContent=from||"—";          // départ (suit l'onglet)
+    if($("hdrSub")) $("hdrSub").innerHTML=to?("vers <b>"+esc(to)+"</b>"):"";
+  }
+
+  // --- Compteur d'appels / jour ---
+  function todayKey(){return new Date().toISOString().slice(0,10);}
+  function readUsage(){
+    try{var u=JSON.parse(localStorage.getItem(LS+"-usage")); if(u&&u.date===todayKey())return u;}catch(e){}
+    return {date:todayKey(),count:0};
+  }
+  function bumpUsage(){var u=readUsage();u.count++;try{localStorage.setItem(LS+"-usage",JSON.stringify(u));}catch(e){}return u;}
+  function renderUsage(){
+    var u=readUsage(), el=$("usage");
+    el.textContent=u.count+" / "+CAP+" aujourd'hui";
+    el.className="usage"+(u.count>=CAP?" full":(u.count>=CAP*0.8?" hi":""));
+  }
+  function showCap(){
+    loading.hidden=true; panel.hidden=true; live.hidden=false;
+    setPulse("err"); renderUsage();
+    $("status").textContent="Limite quotidienne atteinte";
+    $("hero").innerHTML='<div class="msg err"><h3>Quota du jour atteint</h3>'+
+      '<p>'+CAP+' appels effectués aujourd\'hui. L\'actualisation reprendra automatiquement demain. '+
+      'Augmente l\'intervalle dans ⚙ pour tenir toute la journée.</p></div>';
+    $("list").innerHTML="";
+  }
+
+  // --- Modèle départ → arrivée (itinéraires Navitia) ---
+  function departPt(){ return {ref:cfg.departRef||"", lat:cfg.departLat||"", lon:cfg.departLon||"", label:cfg.departLabel||""}; }
+  function arrivePt(){ return {ref:cfg.arriveRef||"", lat:cfg.arriveLat||"", lon:cfg.arriveLon||"", label:cfg.arriveLabel||""}; }
+  function legs(){
+    var a=departPt(), b=arrivePt();
+    if(!a.ref || !b.ref) return [];
+    return [ {from:a,to:b,label:"Aller"}, {from:b,to:a,label:"Retour"} ];
+  }
+  function activeLeg(){ var l=legs(); return l[activeTab]||l[0]||null; }
+  function ptParam(pt){
+    if(pt.lon && pt.lat) return pt.lon+";"+pt.lat;
+    var a=arridOf(pt.ref); return a?("stop_point:IDFM:"+a):pt.ref;
+  }
+  function journeysURL(leg){
+    var base="https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia/journeys"
+      +"?from="+encodeURIComponent(ptParam(leg.from))
+      +"&to="+encodeURIComponent(ptParam(leg.to))
+      +"&count=6&max_nb_transfers=0&data_freshness=realtime";
+    var id=lineId(cfg.lineref); if(id) base+="&allowed_id%5B%5D="+encodeURIComponent("line:IDFM:"+id);
+    if(cfg.proxy) base=cfg.proxy+encodeURIComponent(base);
+    return base;
+  }
+  function navDate(s){ var m=/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)/.exec(s||""); return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5],+m[6]):null; }
+  function parseJourneys(json){
+    var out=[];
+    try{
+      (json.journeys||[]).forEach(function(j){
+        var secs=j.sections||[], pt=null;
+        for(var i=0;i<secs.length;i++){ if(secs[i].type==="public_transport"){ pt=secs[i]; break; } }
+        if(!pt) return;
+        var di=pt.display_informations||{};
+        var dep=navDate(pt.departure_date_time||j.departure_date_time); if(!dep) return;
+        var base=navDate(pt.base_departure_date_time);
+        var rt=(pt.data_freshness||j.data_freshness)==="realtime";
+        out.push({ dest:di.direction||di.headsign||di.label||"", lineName:di.code||di.label||"",
+          time:dep, expected:rt?dep:null, aimed:base||null, realtime:rt });
+      });
+    }catch(e){}
+    return out;
+  }
+
+  function refresh(showLoad){
+    if(panelOpen) return;                        // ne pas actualiser/fermer la config pendant qu'elle est ouverte
+    if(readUsage().count>=CAP){stopTimer(); showCap(); return;}
+    var leg=activeLeg(); if(!leg) return;
+    if(showLoad && !loadedOnce){live.hidden=true;loading.hidden=false;panel.hidden=true;}
+    setPulse("load");
+    bumpUsage(); renderUsage();
+    fetch(journeysURL(leg),{headers:{apikey:cfg.apikey,Accept:"application/json"}})
+      .then(function(r){
+        if(r.status===401||r.status===403) throw new Error("Clé API refusée (401/403). Vérifie ton jeton PRIM.");
+        if(r.status===429) throw new Error("Quota dépassé (429). Réessaie plus tard.");
+        if(!r.ok) throw new Error("Erreur HTTP "+r.status+".");
+        return r.json();
+      })
+      .then(render)
+      .catch(function(e){showError(e);});
+  }
+
+  function parse(json){
+    var out=[];
+    try{
+      var deliv=json.Siri.ServiceDelivery.StopMonitoringDelivery;
+      (Array.isArray(deliv)?deliv:[deliv]).forEach(function(d){
+        (d.MonitoredStopVisit||[]).forEach(function(v){
+          var j=v.MonitoredVehicleJourney||{};
+          var call=j.MonitoredCall||{};
+          var exp=call.ExpectedDepartureTime||call.ExpectedArrivalTime;
+          var aim=call.AimedDepartureTime||call.AimedArrivalTime;
+          var t=exp||aim;
+          if(!t)return;
+          out.push({
+            line:(j.LineRef&&j.LineRef.value)||"",
+            lineName:pick(j.PublishedLineName),
+            dest:pick(j.DestinationName)||pick(j.DirectionName)||j.DirectionName||"",
+            stop:pick(call.StopPointName),
+            time:new Date(t),
+            expected: exp?new Date(exp):null,
+            aimed: aim?new Date(aim):null,
+            realtime:!!exp
+          });
+        });
+      });
+    }catch(e){}
+    return out;
+  }
+  function pick(a){if(!a)return"";if(typeof a==="string")return a;if(Array.isArray(a))return(a[0]&&(a[0].value||a[0]))||"";return a.value||""}
+
+  // Perturbations renvoyées par stop-monitoring (déviation, arrêt non desservi, suspension…)
+  function parseExceptions(json){
+    var out=[];
+    try{
+      var deliv=json.Siri.ServiceDelivery.StopMonitoringDelivery;
+      (Array.isArray(deliv)?deliv:[deliv]).forEach(function(d){
+        (d.ServiceException||[]).forEach(function(ex){
+          var notice=ex.Notice?((ex.Notice[0]&&ex.Notice[0].value)||(typeof ex.Notice==="string"?ex.Notice:"")):"";
+          out.push({
+            notice:String(notice||"").trim(),
+            status:(ex.ServiceStatus&&ex.ServiceStatus.value)||"",
+            dir:(ex.DirectionRef&&ex.DirectionRef.value)||""
+          });
+        });
+      });
+    }catch(e){}
+    return out;
+  }
+
+  function render(json){
+    if(panelOpen) return;                        // un fetch en cours ne doit pas fermer la config
+    var all=parseJourneys(json);
+    lastExceptions=[];
+    try{ var ss=((json.journeys||[])[0]||{}).sections||[];
+      for(var si=0;si<ss.length;si++){ var fp=ss[si].from&&ss[si].from.stop_point; if(ss[si].type==="public_transport"&&fp&&fp.coord){ lastFromCoord={lat:+fp.coord.lat,lon:+fp.coord.lon}; break; } }
+    }catch(e){}
+    var now=Date.now();
+    var items=all.filter(function(x){ return x.time.getTime()>now-45000; }).sort(function(a,b){return a.time-b.time;});
+
+    loading.hidden=true; panel.hidden=true; live.hidden=false; loadedOnce=true;
+    setPulse("ok"); renderUsage(); renderTrajets(); renderTabs(); renderBanner(); fetchTraffic(false);
+    $("status").textContent="Mis à jour "+fmtClock(new Date());
+
+    scheduleAlerts(items); renderChip();
+    lastItems=items; lastOkAt=Date.now();
+    paint();
+    schedule();
+  }
+
+  // (2) Rendu réutilisable — recalcule les minutes depuis les heures stockées, SANS appel API.
+  function paint(){
+    var now=Date.now();
+    var items=lastItems.filter(function(x){return x.time.getTime()>now-45000;});
+    lastNext = items.length ? Math.round((items[0].time-now)/60000) : null;
+
+    if(!items.length){
+      lastPaintMin=null;
+      $("hero").innerHTML='<div class="lbl">Aucun passage</div>'+
+        '<p class="dir" style="margin-top:8px">Aucun trajet direct trouvé dans les prochaines minutes.</p>'+
+        '<p class="dir" style="margin-top:6px;color:var(--faint)">Fin de service possible, ou vérifie départ / arrivée (et la ligne) dans ⚙.</p>';
+      $("list").innerHTML="";
+      renderHeader();
+      return;
+    }
+
+    var hi=pickHero(items), first=items[hi], mins=minsTo(first.time,now);
+    lastPaintMin=mins;
+    renderHeader();
+    var cl=cls(mins), cc=catchInfo(mins);
+    $("hero").innerHTML=
+      '<div class="lbl">'+(hi>0?"Prochain bus attrapable":"Prochain passage")+'</div>'+
+      '<div class="dir">vers <b>'+esc(first.dest||"—")+'</b></div>'+
+      '<div class="big '+cl+'">'+
+        (mins<=0?'<span class="mins">À quai</span>':'<span class="mins tnum">'+mins+'</span><span class="unit">min</span>')+
+      '</div>'+
+      '<div class="count" id="count">'+fmtCountdown(first.time.getTime()-now)+'</div>'+
+      '<div class="catch '+cc.cls+'">'+cc.label+'</div>'+
+      '<div class="at">'+(first.realtime?'<span class="live">● temps réel</span>':'<span class="sched">○ théorique</span>')+
+        ' · départ '+fmtClock(first.time)+delayHtml(first)+'</div>';
+
+    var others=items.filter(function(_,i){return i!==hi;}).slice(0,6);
+    var rows=others.map(function(x){
+      var m=minsTo(x.time,now), c=cls(m), ci=catchInfo(m);
+      return '<li>'+
+        '<span class="dot '+(x.realtime?"":"sched")+'"></span>'+
+        '<div class="li-dir"><div class="d">'+esc(x.dest||"—")+'</div>'+
+          '<div class="s">'+fmtClock(x.time)+(x.realtime?'':' · théorique')+delayHtml(x)+'</div></div>'+
+        '<span class="li-catch '+ci.cls+'">'+ci.short+'</span>'+
+        '<div class="li-min '+c+'">'+(m<=0?'<span class="m">0</span>':'<span class="m tnum">'+m+'</span>')+'<span class="u">min</span></div>'+
+      '</li>';
+    }).join("");
+    $("list").innerHTML=rows||'<li><div class="li-dir"><div class="s">Pas d\'autre passage proche.</div></div></li>';
+  }
+
+  function showError(e){
+    if(panelOpen) return;                        // idem : ne pas basculer d'écran pendant la config
+    setPulse("err"); renderUsage();
+    // (4) On a déjà des données ? On les garde, juste un statut discret — pas d'écran rouge.
+    if(loadedOnce && lastItems.length){
+      loading.hidden=true; panel.hidden=true; live.hidden=false;
+      paint();                                   // re-décompte depuis la dernière donnée connue
+      $("status").textContent="Reconnexion… · dernière maj "+fmtClock(new Date(lastOkAt));
+      return;
+    }
+    loading.hidden=true; live.hidden=true; panel.hidden=true;
+    var corsHint = (e && e.message && /Failed to fetch|NetworkError|load failed/i.test(e.message))
+      ? '<h3>Appel bloqué</h3><p>Le navigateur a bloqué la requête, souvent à cause de CORS ou d\'un réseau coupé. '+
+        'Ouvre ce fichier directement dans Chrome (pas dans un aperçu intégré). Si ça persiste, renseigne un <b>Proxy CORS</b> dans ⚙.</p>'
+      : '<h3>Erreur</h3><p>'+esc((e&&e.message)||"Impossible de récupérer les passages.")+'</p>';
+    live.hidden=false;
+    $("hero").innerHTML='<div class="msg err">'+corsHint+'</div>';
+    $("list").innerHTML="";
+    $("status").textContent="Échec · "+fmtClock(new Date());
+  }
+
+  // --- (1) Attrapable / (3) Retard ---
+  function clampWalk(){var n=parseInt(cfg.walk,10); return (isNaN(n)||n<0)?5:(n>60?60:n);}
+  function catchInfo(mins){
+    var margin=mins-clampWalk();
+    if(margin>=2) return {cls:"y",label:"✓ tu l'as",short:"tu l'as"};
+    if(margin>=0) return {cls:"j",label:"⚡ c'est juste",short:"juste"};
+    return {cls:"n",label:"trop tard pour celui-ci",short:"trop tard"};
+  }
+  // Index du bus mis en avant : 1er réellement attrapable si l'option est active, sinon le prochain.
+  function pickHero(items){
+    if(cfg.heroCatchable){
+      var now=Date.now();
+      for(var i=0;i<items.length;i++){ if(catchInfo(minsTo(items[i].time,now)).cls!=="n") return i; }
+    }
+    return 0;
+  }
+  function delayMin(x){ if(!x.expected||!x.aimed) return 0; return Math.round((x.expected-x.aimed)/60000); }
+  function delayHtml(x){
+    var d=delayMin(x);
+    if(d>=1) return ' · <span class="delay">+'+d+' min de retard</span>';
+    if(d<=-1) return ' · <span class="delay early">'+Math.abs(d)+' min d\'avance</span>';
+    return '';
+  }
+
+  // --- Toggle Aller / Retour (segmenté, curseur qui glisse) ---
+  function renderTabs(){
+    var el=$("tabs"), l=legs();
+    if(l.length<2){el.hidden=true; el.innerHTML=""; return;}
+    el.hidden=false;
+    var tc=cfg.lineColor?(' style="--tc:#'+esc(cfg.lineColor)+'"'):'';
+    el.innerHTML='<div class="segmented" data-active="'+activeTab+'"'+tc+'><span class="seg-thumb"></span>'+
+      l.map(function(leg,i){return '<button type="button" class="seg'+(i===activeTab?" on":"")+'" data-i="'+i+'">'+esc(leg.label)+'</button>';}).join("")+
+      '</div>';
+    Array.prototype.forEach.call(el.querySelectorAll(".seg"),function(b){
+      b.addEventListener("click",function(){
+        var i=+b.getAttribute("data-i"); if(i===activeTab)return;
+        activeTab=i;
+        // glisse le curseur immédiatement (sans re-render) pour l'animation
+        var seg=el.querySelector(".segmented"); if(seg){ seg.setAttribute("data-active",i);
+          Array.prototype.forEach.call(el.querySelectorAll(".seg"),function(s){ s.classList.toggle("on",+s.getAttribute("data-i")===i); }); }
+        loadedOnce=false; renderHeader(); refresh(true);
+      });
+    });
+  }
+
+  // --- (2) Infos trafic (best-effort, fail-silent) ---
+  function trafficURL(){
+    var u="https://prim.iledefrance-mobilites.fr/marketplace/general-message?LineRef="+encodeURIComponent(cfg.lineref||"ALL");
+    if(cfg.proxy) u=cfg.proxy+encodeURIComponent(u);
+    return u;
+  }
+  function tSig(s){ return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim().slice(0,45); }
+  function tSeverity(text){
+    var t=text.toLowerCase();
+    if(/(non|pas|plus) desservi|supprim|interrompu|bloqu|ferm[ée]|suspendu|aucun bus|aucune circulation|ne circul/.test(t)) return "block";
+    if(/d[ée]viation|perturb|ralenti|modifi|retard|travaux|report/.test(t)) return "warn";
+    return "info";
+  }
+  function tRank(s){ return s==="block"?2:(s==="warn"?1:0); }
+  function collectTraffic(j){
+    var texts=[], seen={}, dates=[];
+    (function walk(o){
+      if(!o||typeof o!=="object") return;
+      if(Array.isArray(o)){o.forEach(walk); return;}
+      Object.keys(o).forEach(function(k){
+        var v=o[k];
+        if(k==="MessageText"){
+          var t=(typeof v==="string")?v:(v&&typeof v.value==="string")?v.value:(Array.isArray(v)&&v[0]&&typeof v[0].value==="string")?v[0].value:"";
+          t=String(t||"").replace(/\s+/g," ").trim();
+          if(t.length>1 && !seen[t]){ seen[t]=1; texts.push(t); }
+          if(v && typeof v==="object") walk(v);
+        } else if(k==="ValidUntilTime"||k==="EndTime"){
+          var dv=(typeof v==="string")?v:(v&&typeof v.value==="string"?v.value:"");
+          var d=dv?new Date(dv):null; if(d&&!isNaN(d.getTime())) dates.push(d);
+        } else walk(v);
+      });
+    })(j);
+    // (2) dédupe : même préfixe normalisé → on garde le message le plus complet
+    var bySig={};
+    texts.forEach(function(t){ var s=tSig(t); if(!bySig[s]||t.length>bySig[s].length) bySig[s]=t; });
+    var messages=Object.keys(bySig).map(function(k){return bySig[k];}).slice(0,3);
+    // (1) sévérité = la plus forte parmi les messages ; période = échéance la plus lointaine
+    var sev=messages.reduce(function(acc,m){var s=tSeverity(m); return tRank(s)>tRank(acc)?s:acc;},"info");
+    var until=dates.length?new Date(Math.max.apply(null,dates.map(function(d){return d.getTime();}))):null;
+    return {messages:messages, until:until, severity:sev};
+  }
+  var TRAFFIC_EMPTY={messages:[],until:null,severity:"info"};
+  function fetchTraffic(force){
+    if(!cfg.traffic || !configured()){ trafficMeta=TRAFFIC_EMPTY; renderBanner(); return; }
+    if(!force && Date.now()-trafficAt < 600000) return;      // cache 10 min
+    if(readUsage().count>=CAP) return;
+    trafficAt=Date.now();
+    bumpUsage(); renderUsage();
+    fetch(trafficURL(),{headers:{apikey:cfg.apikey,Accept:"application/json"}})
+      .then(function(r){ return r.ok?r.json():null; })
+      .then(function(j){ trafficMeta=j?collectTraffic(j):TRAFFIC_EMPTY; renderBanner(); })
+      .catch(function(){ /* silencieux : pas de bandeau si l'API ne répond pas */ });
+  }
+  function renderBanner(){
+    var el=$("banner"); if(!el) return;
+    var m=cfg.traffic?trafficMeta:TRAFFIC_EMPTY;
+    var msgs=(m.messages||[]).filter(function(x){return x && String(x).trim().length>1;});
+    if(!msgs.length){ el.hidden=true; el.innerHTML=""; el.className="alert-banner"; return; }
+    el.hidden=false;
+    el.className="alert-banner"+(m.severity==="block"?" block":"");
+    var until="";
+    if(m.until){
+      until=' · <span class="until">jusqu\'au '+m.until.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"})+
+        " "+m.until.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})+'</span>';
+    }
+    el.innerHTML='<span class="ico">'+(m.severity==="block"?"⛔":"⚠️")+'</span>'+
+      '<div><b>Info trafic ligne '+esc(lineShortName())+'</b>'+until+'<br>'+msgs.map(esc).join('<br>')+'</div>';
+  }
+
+  // --- (5) Mode borne ---
+  function toggleKiosk(){
+    var on=!document.body.classList.contains("kiosk");
+    document.body.classList.toggle("kiosk",on);
+    try{
+      if(on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){});
+      else if(!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+    }catch(e){}
+  }
+
+  function minsTo(d,now){return Math.round((d.getTime()-now)/60000);}
+  function cls(m){return m<=2?"soon":m<=5?"warn":"ok";}
+  function fmtClock(d){return d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});}
+  function fmtCountdown(ms){
+    var s=Math.round(ms/1000);
+    if(s<=0) return '<b>à quai</b>';
+    if(s<60) return 'départ dans <b>'+s+' s</b>';
+    var m=Math.floor(s/60), r=s%60;
+    return 'départ dans <b>'+m+' min '+(r<10?"0":"")+r+' s</b>';
+  }
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+  function setPulse(state){
+    var p=$("pulse");
+    p.classList.remove("live-anim");
+    if(state==="ok"){p.style.background="var(--ok)";p.classList.add("live-anim");}
+    else if(state==="err"){p.style.background="var(--soon)";}
+    else if(state==="idle"){p.style.background="var(--faint)";}
+    else{p.style.background="var(--warn)";}
+  }
+
+  // (2) Compte à rebours vivant : chaque seconde on met à jour le décompte (sans appel réseau),
+  //     et on repeint tout quand la minute change ou qu'un bus est passé.
+  tickTimer=setInterval(function(){
+    if(paused || document.hidden || live.hidden || !lastItems.length) return;
+    var now=Date.now();
+    var fut=lastItems.filter(function(x){return x.time.getTime()>now-45000;});
+    if(!fut.length){ paint(); return; }
+    var hero=fut[pickHero(fut)];
+    var ms=hero.time.getTime()-now, mins=Math.round(ms/60000);
+    var c=$("count"); if(c) c.innerHTML=fmtCountdown(ms);
+    if(mins!==lastPaintMin) paint();      // minute changée (ou passage tombé / hero décalé) → repeint complet
+  },1000);
+
+  start();
+})();
+
+// PWA : enregistre le service worker (installation + hors-ligne). Uniquement en contexte sécurisé.
+if ("serviceWorker" in navigator &&
+    (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

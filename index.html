@@ -47,7 +47,7 @@
     font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:560px; margin:0 auto;
+  .wrap{max-width:640px; margin:0 auto;
     padding-left:max(18px,env(safe-area-inset-left,0px));
     padding-right:max(18px,env(safe-area-inset-right,0px));
     padding-block:22px 40px;}
@@ -338,6 +338,21 @@
     </div>
 
     <div class="field">
+      <label for="maxResults">Nombre de passages affichés</label>
+      <input id="maxResults" type="number" min="1" max="15" step="1" inputmode="numeric" placeholder="6">
+      <div class="sub">Combien de prochains départs montrer (1 à 15), le 1ᵉʳ en grand + les suivants en liste.</div>
+    </div>
+
+    <div class="field">
+      <label>Heures d'activité <span class="opt">(hors plage : pas d'actualisation)</span></label>
+      <div class="row2">
+        <div class="field"><label for="activeStart">De</label><input id="activeStart" type="time"></div>
+        <div class="field"><label for="activeEnd">À</label><input id="activeEnd" type="time"></div>
+      </div>
+      <div class="sub">Laisse vide pour actif 24h/24. Gère le passage de minuit (ex. 06:00 → 01:00). Hors de cette plage, aucun appel API.</div>
+    </div>
+
+    <div class="field">
       <label class="chk"><input type="checkbox" id="traffic"> Afficher les infos trafic de la ligne</label>
       <div class="sub">Bandeau en cas de perturbation (déviation, arrêt non desservi). Best-effort, rafraîchi ~toutes les 10 min ; rien ne s'affiche si l'API ne répond pas.</div>
     </div>
@@ -382,7 +397,7 @@
   var LS="bus132-ledru-rollin";
   var CAP=1000;                       // appels max / jour (quota API)
   var BG_MARGIN=6;                    // min avant la fenêtre d'alerte où on relance le polling en arrière-plan
-  var DEFAULTS={apikey:"",stopref:"",lineref:"STIF:Line::C01160:",dir:"Mitterrand",proxy:"",interval:90,
+  var DEFAULTS={apikey:"",stopref:"",lineref:"STIF:Line::C01160:",dir:"Mitterrand",proxy:"",interval:90,maxResults:6,activeStart:"",activeEnd:"",
     notify:false,lead:5,prep:10,walk:5,heroCatchable:true,lineLabel:"132 — bus",stopLabel:"",
     lineColor:"640082",lineText:"ffffff",lineMode:"bus",
     stop2ref:"",dir2:"",label1:"Aller",label2:"Retour",traffic:true};
@@ -437,7 +452,8 @@
   }
   function openPanel(){
     $("apikey").value=cfg.apikey;
-    $("interval").value=cfg.interval;
+    $("interval").value=cfg.interval; $("maxResults").value=cfg.maxResults;
+    $("activeStart").value=cfg.activeStart||""; $("activeEnd").value=cfg.activeEnd||"";
     $("heroCatchable").checked=cfg.heroCatchable;
     $("traffic").checked=cfg.traffic;
     $("notify").checked=cfg.notify; $("lead").value=cfg.lead; $("prep").value=cfg.prep; $("leadwrap").hidden=!cfg.notify;
@@ -553,6 +569,8 @@
     cfg.lineLabel=$("lineSearch").value.trim();
     cfg.lineColor=selLineColor; cfg.lineText=selLineText; cfg.lineMode=selLineMode;
     var iv=parseInt($("interval").value,10); cfg.interval=(!iv||iv<30)?30:iv;
+    var mr=parseInt($("maxResults").value,10); cfg.maxResults=(!mr||mr<1)?6:(mr>15?15:mr);
+    cfg.activeStart=($("activeStart").value||"").trim(); cfg.activeEnd=($("activeEnd").value||"").trim();
     var wk=parseInt($("walk").value,10); cfg.walk=(isNaN(wk)||wk<0)?5:(wk>60?60:wk);
     cfg.heroCatchable=$("heroCatchable").checked;
     cfg.traffic=$("traffic").checked;
@@ -803,6 +821,14 @@
   }
 
   function clampInterval(){var n=parseInt(cfg.interval,10); return (!n||n<30)?30:n;}
+  function clampResults(){var n=parseInt(cfg.maxResults,10); return (!n||n<1)?6:(n>15?15:n);}
+  function hm2min(s){ var m=/^(\d{1,2}):(\d{2})$/.exec((s||"").trim()); return m?(+m[1]*60 + +m[2]):null; }
+  function withinActiveHours(){
+    var s=hm2min(cfg.activeStart), e=hm2min(cfg.activeEnd);
+    if(s==null || e==null || s===e) return true;          // pas de plage → toujours actif
+    var d=new Date(), now=d.getHours()*60+d.getMinutes();
+    return s<e ? (now>=s && now<e) : (now>=s || now<e);   // gère le passage de minuit
+  }
   function clampLead(){var n=parseInt(cfg.lead,10); return (!n||n<1)?5:(n>30?30:n);}
   function clampPrep(){var n=parseInt(cfg.prep,10); return (!n||n<1)?10:(n>60?60:n);}
   function topTier(){return Math.max(clampLead(),clampPrep());}
@@ -811,6 +837,7 @@
   function schedule(){
     stopTimer();
     if(paused || panelOpen || !configured()) return;
+    if(!withinActiveHours()) return;                 // hors plage active → pas d'auto-actualisation
     if(document.hidden && !armed()) return;            // arrière-plan : polling seulement si un bus approche (alerte)
     var sec=clampInterval();
     if(armed()) sec=Math.min(sec,45);                  // plus réactif près du seuil d'alerte
@@ -1008,7 +1035,7 @@
     var base="https://prim.iledefrance-mobilites.fr/marketplace/v2/navitia/journeys"
       +"?from="+encodeURIComponent(ptParam(leg.from))
       +"&to="+encodeURIComponent(ptParam(leg.to))
-      +"&count=6&max_nb_transfers=0&data_freshness=realtime";
+      +"&count="+clampResults()+"&max_nb_transfers=0&data_freshness=realtime";
     var id=lineId(cfg.lineref); if(id) base+="&allowed_id%5B%5D="+encodeURIComponent("line:IDFM:"+id);
     if(cfg.proxy) base=cfg.proxy+encodeURIComponent(base);
     return base;
@@ -1150,7 +1177,7 @@
       '<div class="at">'+(first.realtime?'<span class="live">● temps réel</span>':'<span class="sched">○ théorique</span>')+
         ' · départ '+fmtClock(first.time)+delayHtml(first)+'</div>';
 
-    var others=items.filter(function(_,i){return i!==hi;}).slice(0,6);
+    var others=items.filter(function(_,i){return i!==hi;}).slice(0,Math.max(0,clampResults()-1));
     var rows=others.map(function(x){
       var m=minsTo(x.time,now), c=cls(m), ci=catchInfo(m);
       return '<li>'+
@@ -1332,7 +1359,11 @@
   // (2) Compte à rebours vivant : chaque seconde on met à jour le décompte (sans appel réseau),
   //     et on repeint tout quand la minute change ou qu'un bus est passé.
   tickTimer=setInterval(function(){
-    if(paused || document.hidden || live.hidden || !lastItems.length) return;
+    if(paused || document.hidden || live.hidden) return;
+    // Hors plage active : on gèle l'actualisation (le décompte local continue, mais aucun appel)
+    if(!withinActiveHours()){ if(timer) stopTimer(); if($("status")) $("status").textContent="⏸ Hors plage active"; }
+    else if(!timer && !panelOpen && configured()){ refresh(false); schedule(); }   // reprise quand la plage s'ouvre
+    if(!lastItems.length) return;
     var now=Date.now();
     var fut=lastItems.filter(function(x){return x.time.getTime()>now-45000;});
     if(!fut.length){ paint(); return; }

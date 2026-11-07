@@ -2,7 +2,18 @@
    Rend l'app installable et utilisable hors-ligne.
    Stratégie : RÉSEAU D'ABORD pour la coquille (la page reste toujours à jour quand tu es en ligne),
    cache seulement en secours hors-ligne. Les appels API PRIM ne sont jamais mis en cache. */
-const CACHE = "trajets-idf-v4";
+const CACHE = "trajets-idf-v5";
+
+// Clic sur une notification → focus l'app (ou l'ouvre).
+self.addEventListener("notificationclick", function (e) {
+  e.notification.close();
+  e.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (cl) {
+      for (var i = 0; i < cl.length; i++) { if ("focus" in cl[i]) return cl[i].focus(); }
+      if (self.clients.openWindow) return self.clients.openWindow("./index.html");
+    })
+  );
+});
 const SHELL = [
   "./",
   "./index.html",

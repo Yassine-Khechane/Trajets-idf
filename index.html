@@ -1323,11 +1323,26 @@
   start();
 })();
 
-// PWA : enregistre le service worker (installation + hors-ligne). Uniquement en contexte sécurisé.
+// PWA : service worker (installation + hors-ligne) + mise à jour automatique.
 if ("serviceWorker" in navigator &&
     (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+    var reloaded = false;
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      reg.update();
+      // vérifie les mises à jour à chaque retour sur l'appli + toutes les heures
+      document.addEventListener("visibilitychange", function(){ if(!document.hidden) reg.update(); });
+      setInterval(function(){ reg.update(); }, 3600000);
+      reg.addEventListener("updatefound", function () {
+        var nw = reg.installing; if (!nw) return;
+        nw.addEventListener("statechange", function () {
+          // une nouvelle version s'est activée alors qu'une ancienne tournait → on recharge
+          if (nw.state === "activated" && navigator.serviceWorker.controller && !reloaded) {
+            reloaded = true; location.reload();
+          }
+        });
+      });
+    }).catch(function () {});
   });
 }
 </script>

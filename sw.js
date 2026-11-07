@@ -2,7 +2,7 @@
    Rend l'app installable et utilisable hors-ligne.
    Stratégie : RÉSEAU D'ABORD pour la coquille (la page reste toujours à jour quand tu es en ligne),
    cache seulement en secours hors-ligne. Les appels API PRIM ne sont jamais mis en cache. */
-const CACHE = "trajets-idf-v3";
+const CACHE = "trajets-idf-v4";
 const SHELL = [
   "./",
   "./index.html",
